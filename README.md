@@ -14,6 +14,8 @@ A Chrome extension that automatically adjusts the volume of audio and video elem
 - 💻 **System Volume Awareness**: Provides guidance when web volume reaches limits
 - 🎵 **Web Audio API Support**: Works with custom players (SoundCloud, Spotify, etc.)
 - 🌐 **Universal Compatibility**: Supports both HTML5 media and Web Audio API
+- 🔄 **Background Monitoring**: Active monitoring across ALL browser tabs simultaneously
+- 📊 **Multi-Tab Display**: See volume levels of all tabs with audio in the popup
 
 ## Important: System Volume Limitations
 
@@ -27,9 +29,15 @@ The extension will show helpful hints when web volume reaches 100% to remind you
 
 ## How It Works
 
+### Architecture
+1. **Background Script**: Continuously monitors all browser tabs (every 1 second)
+2. **Content Scripts**: Injected into each webpage to detect and control audio
+3. **Popup Interface**: Real-time control and monitoring dashboard
+
+### Audio Detection & Control
 1. **HTML5 Media**: Scans all web pages for `<audio>` and `<video>` elements
 2. **Web Audio API**: Monitors AudioContext and GainNode instances for custom players
-3. **Real-time Monitoring**: Continuously checks volume levels of all detected audio sources
+3. **Cross-Tab Monitoring**: Background script coordinates volume adjustments across all tabs
 4. **Smart Adjustment**: When volume falls below minimum, it automatically boosts it
 5. **Volume Limiting**: When volume exceeds maximum, it automatically reduces it
 6. **Visual Feedback**: Shows brief indicators when adjustments are made

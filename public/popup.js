@@ -19,22 +19,27 @@ const volumeText = document.getElementById('volumeText');
 const currentVolumeDiv = document.getElementById('currentVolume');
 const systemTip = document.getElementById('systemTip');
 const volumeNote = document.getElementById('volumeNote');
+const tabsInfo = document.getElementById('tabsInfo');
+const tabsList = document.getElementById('tabsList');
 
-// Load settings from storage
+// Load settings from background script
 async function loadSettings() {
     try {
-        const result = await chrome.storage.sync.get(DEFAULT_SETTINGS);
-        return result;
+        const result = await sendMessageToBackground({ type: 'GET_SETTINGS' });
+        return result || DEFAULT_SETTINGS;
     } catch (error) {
         console.error('Error loading settings:', error);
         return DEFAULT_SETTINGS;
     }
 }
 
-// Save settings to storage
+// Save settings via background script
 async function saveSettings(settings) {
     try {
-        await chrome.storage.sync.set(settings);
+        await sendMessageToBackground({ 
+            type: 'SETTINGS_UPDATED', 
+            settings 
+        });
         console.log('Settings saved:', settings);
     } catch (error) {
         console.error('Error saving settings:', error);
@@ -55,13 +60,14 @@ function updateUI(settings) {
     statusDiv.classList.toggle('disabled', !settings.enabled);
 }
 
-// Send message to content script
-async function sendMessageToContentScript(message) {
+// Send message to background script
+async function sendMessageToBackground(message) {
     try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        await chrome.tabs.sendMessage(tab.id, message);
+        const response = await chrome.runtime.sendMessage(message);
+        return response;
     } catch (error) {
-        console.error('Error sending message to content script:', error);
+        console.error('Error sending message to background script:', error);
+        return null;
     }
 }
 
@@ -142,6 +148,40 @@ function updateVolumeDisplay(volume, hasMedia = true) {
     }
 }
 
+// Update tabs display
+async function updateTabsDisplay() {
+    if (!tabsList || !tabsInfo) return;
+    
+    try {
+        const tabData = await sendMessageToBackground({ type: 'GET_ALL_TAB_VOLUMES' });
+        
+        if (tabData && tabData.length > 0) {
+            tabsInfo.style.display = 'block';
+            tabsList.innerHTML = '';
+            
+            tabData.forEach(tab => {
+                const tabItem = document.createElement('div');
+                tabItem.className = 'tab-item';
+                
+                const title = tab.title || 'Unknown Tab';
+                const shortTitle = title.length > 30 ? title.substring(0, 30) + '...' : title;
+                
+                tabItem.innerHTML = `
+                    <span class="tab-title" title="${title}">${shortTitle}</span>
+                    <span class="tab-volume">${tab.volume}%</span>
+                `;
+                
+                tabsList.appendChild(tabItem);
+            });
+        } else {
+            tabsInfo.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error updating tabs display:', error);
+        tabsInfo.style.display = 'none';
+    }
+}
+
 // Initialize popup
 async function init() {
     const settings = await loadSettings();
@@ -149,19 +189,19 @@ async function init() {
     
     // Request current volume
     await requestCurrentVolume();
+    await updateTabsDisplay();
     
     // Update volume display more frequently for real-time feedback
-    setInterval(requestCurrentVolume, 500); // Check every 500ms
+    setInterval(async () => {
+        await requestCurrentVolume();
+        await updateTabsDisplay();
+    }, 1000); // Check every 1 second
     
     // Enable/disable toggle
     enableToggle.addEventListener('click', async () => {
         settings.enabled = !settings.enabled;
         await saveSettings(settings);
         updateUI(settings);
-        await sendMessageToContentScript({ 
-            type: 'SETTINGS_UPDATED', 
-            settings 
-        });
     });
     
     // Min volume slider
@@ -177,10 +217,6 @@ async function init() {
         settings.minVolume = value;
         await saveSettings(settings);
         updateUI(settings);
-        await sendMessageToContentScript({ 
-            type: 'SETTINGS_UPDATED', 
-            settings 
-        });
     });
     
     // Max volume slider
@@ -196,10 +232,6 @@ async function init() {
         settings.maxVolume = value;
         await saveSettings(settings);
         updateUI(settings);
-        await sendMessageToContentScript({ 
-            type: 'SETTINGS_UPDATED', 
-            settings 
-        });
     });
 }
 

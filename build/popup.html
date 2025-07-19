@@ -187,6 +187,56 @@
         .system-volume-tip strong {
             color: #533f03;
         }
+        
+        .tabs-info {
+            margin: 15px 0;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .tabs-info label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+            font-size: 13px;
+        }
+        
+        .tabs-list {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        
+        .tab-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+        }
+        
+        .tab-item:last-child {
+            border-bottom: none;
+        }
+        
+        .tab-title {
+            flex: 1;
+            margin-right: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: #333;
+        }
+        
+        .tab-volume {
+            font-weight: bold;
+            color: #666;
+            min-width: 40px;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -229,6 +279,13 @@
     </div>
     
     <div class="status" id="status">Auto volume adjustment is active</div>
+    
+    <div class="tabs-info" id="tabsInfo" style="display: none;">
+        <label>Monitored Tabs</label>
+        <div class="tabs-list" id="tabsList">
+            <!-- Tab volume info will be populated here -->
+        </div>
+    </div>
     
     <div class="system-volume-tip" id="systemTip" style="display: none;">
         <strong>💡 Tip:</strong> If audio is still too quiet even at 100%, try increasing your system volume or the browser's volume in your system's volume mixer.

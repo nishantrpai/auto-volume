@@ -571,7 +571,57 @@ const getCurrentVolume = () => {
     };
 };
 
-// Listen for messages from popup
+// Adjust all media elements to a target volume (called by background script)
+const adjustAllMediaToTarget = (targetVolumePercent, adjustmentType) => {
+    if (!settings.enabled) return;
+    
+    const targetVolume = percentToVolume(targetVolumePercent);
+    let adjustedCount = 0;
+    
+    // Adjust HTML5 media elements
+    mediaElements.forEach(element => {
+        if (document.contains(element) && !element.muted) {
+            const oldVolume = element.volume;
+            element.volume = targetVolume;
+            
+            if (Math.abs(oldVolume - targetVolume) > 0.01) {
+                adjustedCount++;
+                showVolumeIndicator(element, targetVolumePercent, adjustmentType);
+            }
+        }
+    });
+    
+    // Adjust Web Audio gain nodes
+    gainNodes.forEach(gainNode => {
+        try {
+            if (gainNode.context && gainNode.context.state !== 'closed') {
+                const oldGain = gainNode.gain.value;
+                gainNode.gain.setValueAtTime(targetVolume, gainNode.context.currentTime);
+                
+                if (Math.abs(oldGain - targetVolume) > 0.01) {
+                    adjustedCount++;
+                    
+                    // Show visual indicator
+                    const mediaElement = findRelatedMediaElement();
+                    if (mediaElement) {
+                        showVolumeIndicator(mediaElement, targetVolumePercent, adjustmentType);
+                    } else {
+                        showFloatingVolumeIndicator(targetVolumePercent, adjustmentType);
+                    }
+                }
+            }
+        } catch (error) {
+            // Remove invalid gain nodes
+            gainNodes.delete(gainNode);
+        }
+    });
+    
+    if (adjustedCount > 0) {
+        console.log(`Auto Volume: Background script ${adjustmentType === 'boost' ? 'boosted' : 'reduced'} ${adjustedCount} audio source(s) to ${targetVolumePercent}%`);
+    }
+};
+
+// Listen for messages from popup and background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'SETTINGS_UPDATED') {
         settings = message.settings;
@@ -587,6 +637,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else if (message.type === 'GET_CURRENT_VOLUME') {
         const volumeInfo = getCurrentVolume();
         sendResponse(volumeInfo);
+    } else if (message.type === 'ADJUST_VOLUME') {
+        // Handle volume adjustment request from background script
+        const { targetVolume, adjustmentType } = message;
+        adjustAllMediaToTarget(targetVolume, adjustmentType);
+        sendResponse({ success: true });
     }
     
     return true; // Will respond asynchronously
