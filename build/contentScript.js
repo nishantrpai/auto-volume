@@ -3,144 +3,622 @@ var __webpack_exports__ = {};
 /*!******************************!*\
   !*** ./src/contentScript.js ***!
   \******************************/
-// Content script file will run in the context of web page.
-// With content script you can manipulate the web pages using
-// Document Object Model (DOM).
-// You can also pass information to the parent extension.
+// Auto Volume Adjuster Content Script
+// Automatically adjusts volume of audio/video elements to stay within min/max thresholds
 
-// We execute this script by making an entry in manifest.json file
-// under `content_scripts` property
+let settings = {
+    enabled: true,
+    minVolume: 20,
+    maxVolume: 80
+};
 
-// For more information on Content Scripts,// See https://developer.chrome.com/extensions/content_scripts
-
-// Log `title` of current active web page
-// @ts-ignore
-let windowurl = window.location.href;
 let isProcessing = false;
+let mediaElements = new Set();
+let volumeCheckInterval = null;
+let webAudioContexts = new Set();
+let gainNodes = new Set();
 
-let validTLDs = [
-  "AAA", "AARP", "ABB", "ABBOTT", "ABBVIE", "ABC", "ABLE", "ABOGADO", "ABUDHABI", "AC", "ACADEMY", "ACCENTURE", "ACCOUNTANT", "ACCOUNTANTS", "ACO", "ACTOR", "AD", "ADS", "ADULT", "AE", "AEG", "AERO", "AETNA", "AF", "AFL", "AFRICA", "AG", "AGAKHAN", "AGENCY", "AI", "AIG", "AIRBUS", "AIRFORCE", "AIRTEL", "AKDN", "AL", "ALIBABA", "ALIPAY", "ALLFINANZ", "ALLSTATE", "ALLY", "ALSACE", "ALSTOM", "AM", "AMAZON", "AMERICANEXPRESS", "AMERICANFAMILY", "AMEX", "AMFAM", "AMICA", "AMSTERDAM", "ANALYTICS", "ANDROID", "ANQUAN", "ANZ", "AO", "AOL", "APARTMENTS", "APP", "APPLE", "AQ", "AQUARELLE", "AR", "ARAB", "ARAMCO", "ARCHI", "ARMY", "ARPA", "ART", "ARTE", "AS", "ASDA", "ASIA", "ASSOCIATES", "AT", "ATHLETA", "ATTORNEY", "AU", "AUCTION", "AUDI", "AUDIBLE", "AUDIO", "AUSPOST", "AUTHOR", "AUTO", "AUTOS", "AW", "AWS", "AX", "AXA", "AZ", "AZURE", "BA", "BABY", "BAIDU", "BANAMEX", "BAND", "BANK", "BAR", "BARCELONA", "BARCLAYCARD", "BARCLAYS", "BAREFOOT", "BARGAINS", "BASEBALL", "BASKETBALL", "BAUHAUS", "BAYERN", "BB", "BBC", "BBT", "BBVA", "BCG", "BCN", "BD", "BE", "BEATS", "BEAUTY", "BEER", "BENTLEY", "BERLIN", "BEST", "BESTBUY", "BET", "BF", "BG", "BH", "BHARTI", "BI", "BIBLE", "BID", "BIKE", "BING", "BINGO", "BIO", "BIZ", "BJ", "BLACK", "BLACKFRIDAY", "BLOCKBUSTER", "BLOG", "BLOOMBERG", "BLUE", "BM", "BMS", "BMW", "BN", "BNPPARIBAS", "BO", "BOATS", "BOEHRINGER", "BOFA", "BOM", "BOND", "BOO", "BOOK", "BOOKING", "BOSCH", "BOSTIK", "BOSTON", "BOT", "BOUTIQUE", "BOX", "BR", "BRADESCO", "BRIDGESTONE", "BROADWAY", "BROKER", "BROTHER", "BRUSSELS", "BS", "BT", "BUILD", "BUILDERS", "BUSINESS", "BUY", "BUZZ", "BV", "BW", "BY", "BZ", "BZH", "CA", "CAB", "CAFE", "CAL", "CALL", "CALVINKLEIN", "CAM", "CAMERA", "CAMP", "CANON", "CAPETOWN", "CAPITAL", "CAPITALONE", "CAR", "CARAVAN", "CARDS", "CARE", "CAREER", "CAREERS", "CARS", "CASA", "CASE", "CASH", "CASINO", "CAT", "CATERING", "CATHOLIC", "CBA", "CBN", "CBRE", "CC", "CD", "CENTER", "CEO", "CERN", "CF", "CFA", "CFD", "CG", "CH", "CHANEL", "CHANNEL", "CHARITY", "CHASE", "CHAT", "CHEAP", "CHINTAI", "CHRISTMAS", "CHROME", "CHURCH", "CI", "CIPRIANI", "CIRCLE", "CISCO", "CITADEL", "CITI", "CITIC", "CITY", "CK", "CL", "CLAIMS", "CLEANING", "CLICK", "CLINIC", "CLINIQUE", "CLOTHING", "CLOUD", "CLUB", "CLUBMED", "CM", "CN", "CO", "COACH", "CODES", "COFFEE", "COLLEGE", "COLOGNE", "COM", "COMMBANK", "COMMUNITY", "COMPANY", "COMPARE", "COMPUTER", "COMSEC", "CONDOS", "CONSTRUCTION", "CONSULTING", "CONTACT", "CONTRACTORS", "COOKING", "COOL", "COOP", "CORSICA", "COUNTRY", "COUPON", "COUPONS", "COURSES", "CPA", "CR", "CREDIT", "CREDITCARD", "CREDITUNION", "CRICKET", "CROWN", "CRS", "CRUISE", "CRUISES", "CU", "CUISINELLA", "CV", "CW", "CX", "CY", "CYMRU", "CYOU", "CZ", "DAD", "DANCE", "DATA", "DATE", "DATING", "DATSUN", "DAY", "DCLK", "DDS", "DE", "DEAL", "DEALER", "DEALS", "DEGREE", "DELIVERY", "DELL", "DELOITTE", "DELTA", "DEMOCRAT", "DENTAL", "DENTIST", "DESI", "DESIGN", "DEV", "DHL", "DIAMONDS", "DIET", "DIGITAL", "DIRECT", "DIRECTORY", "DISCOUNT", "DISCOVER", "DISH", "DIY", "DJ", "DK", "DM", "DNP", "DO", "DOCS", "DOCTOR", "DOG", "DOMAINS", "DOT", "DOWNLOAD", "DRIVE", "DTV", "DUBAI", "DUNLOP", "DUPONT", "DURBAN", "DVAG", "DVR", "DZ", "EARTH", "EAT", "EC", "ECO", "EDEKA", "EDU", "EDUCATION", "EE", "EG", "EMAIL", "EMERCK", "ENERGY", "ENGINEER", "ENGINEERING", "ENTERPRISES", "EPSON", "EQUIPMENT", "ER", "ERICSSON", "ERNI", "ES", "ESQ", "ESTATE", "ET", "EU", "EUROVISION", "EUS", "EVENTS", "EXCHANGE", "EXPERT", "EXPOSED", "EXPRESS", "EXTRASPACE", "FAGE", "FAIL", "FAIRWINDS", "FAITH", "FAMILY", "FAN", "FANS", "FARM", "FARMERS", "FASHION", "FAST", "FEDEX", "FEEDBACK", "FERRARI", "FERRERO", "FI", "FIDELITY", "FIDO", "FILM", "FINAL", "FINANCE", "FINANCIAL", "FIRE", "FIRESTONE", "FIRMDALE", "FISH", "FISHING", "FIT", "FITNESS", "FJ", "FK", "FLICKR", "FLIGHTS", "FLIR", "FLORIST", "FLOWERS", "FLY", "FM", "FO", "FOO", "FOOD", "FOOTBALL", "FORD", "FOREX", "FORSALE", "FORUM", "FOUNDATION", "FOX", "FR", "FREE", "FRESENIUS", "FRL", "FROGANS", "FRONTIER", "FTR", "FUJITSU", "FUN", "FUND", "FURNITURE", "FUTBOL", "FYI", "GA", "GAL", "GALLERY", "GALLO", "GALLUP", "GAME", "GAMES", "GAP", "GARDEN", "GAY", "GB", "GBIZ", "GD", "GDN", "GE", "GEA", "GENT", "GENTING", "GEORGE", "GF", "GG", "GGEE", "GH", "GI", "GIFT", "GIFTS", "GIVES", "GIVING", "GL", "GLASS", "GLE", "GLOBAL", "GLOBO", "GM", "GMAIL", "GMBH", "GMO", "GMX", "GN", "GODADDY", "GOLD", "GOLDPOINT", "GOLF", "GOO", "GOODYEAR", "GOOG", "GOOGLE", "GOP", "GOT", "GOV", "GP", "GQ", "GR", "GRAINGER", "GRAPHICS", "GRATIS", "GREEN", "GRIPE", "GROCERY", "GROUP", "GS", "GT", "GU", "GUCCI", "GUGE", "GUIDE", "GUITARS", "GURU", "GW", "GY", "HAIR", "HAMBURG", "HANGOUT", "HAUS", "HBO", "HDFC", "HDFCBANK", "HEALTH", "HEALTHCARE", "HELP", "HELSINKI", "HERE", "HERMES", "HIPHOP", "HISAMITSU", "HITACHI", "HIV", "HK", "HKT", "HM", "HN", "HOCKEY", "HOLDINGS", "HOLIDAY", "HOMEDEPOT", "HOMEGOODS", "HOMES", "HOMESENSE", "HONDA", "HORSE", "HOSPITAL", "HOST", "HOSTING", "HOT", "HOTELS", "HOTMAIL", "HOUSE", "HOW", "HR", "HSBC", "HT", "HU", "HUGHES", "HYATT", "HYUNDAI", "IBM", "ICBC", "ICE", "ICU", "ID", "IE", "IEEE", "IFM", "IKANO", "IL", "IM", "IMAMAT", "IMDB", "IMMO", "IMMOBILIEN", "IN", "INC", "INDUSTRIES", "INFINITI", "INFO", "ING", "INK", "INSTITUTE", "INSURANCE", "INSURE", "INT", "INTERNATIONAL", "INTUIT", "INVESTMENTS", "IO", "IPIRANGA", "IQ", "IR", "IRISH", "IS", "ISMAILI", "IST", "ISTANBUL", "IT", "ITAU", "ITV", "JAGUAR", "JAVA", "JCB", "JE", "JEEP", "JETZT", "JEWELRY", "JIO", "JLL", "JM", "JMP", "JNJ", "JO", "JOBS", "JOBURG", "JOT", "JOY", "JP", "JPMORGAN", "JPRS", "JUEGOS", "JUNIPER", "KAUFEN", "KDDI", "KE", "KERRYHOTELS", "KERRYLOGISTICS", "KERRYPROPERTIES", "KFH", "KG", "KH", "KI", "KIA", "KIDS", "KIM", "KINDLE", "KITCHEN", "KIWI", "KM", "KN", "KOELN", "KOMATSU", "KOSHER", "KP", "KPMG", "KPN", "KR", "KRD", "KRED", "KUOKGROUP", "KW", "KY", "KYOTO", "KZ", "LA", "LACAIXA", "LAMBORGHINI", "LAMER", "LANCASTER", "LAND", "LANDROVER", "LANXESS", "LASALLE", "LAT", "LATINO", "LATROBE", "LAW", "LAWYER", "LB", "LC", "LDS", "LEASE", "LECLERC", "LEFRAK", "LEGAL", "LEGO", "LEXUS", "LGBT", "LI", "LIDL", "LIFE", "LIFEINSURANCE", "LIFESTYLE", "LIGHTING", "LIKE", "LILLY", "LIMITED", "LIMO", "LINCOLN", "LINK", "LIPSY", "LIVE", "LIVING", "LK", "LLC", "LLP", "LOAN", "LOANS", "LOCKER", "LOCUS", "LOL", "LONDON", "LOTTE", "LOTTO", "LOVE", "LPL", "LPLFINANCIAL", "LR", "LS", "LT", "LTD", "LTDA", "LU", "LUNDBECK", "LUXE", "LUXURY", "LV", "LY", "MA", "MADRID", "MAIF", "MAISON", "MAKEUP", "MAN", "MANAGEMENT", "MANGO", "MAP", "MARKET", "MARKETING", "MARKETS", "MARRIOTT", "MARSHALLS", "MATTEL", "MBA", "MC", "MCKINSEY", "MD", "ME", "MED", "MEDIA", "MEET", "MELBOURNE", "MEME", "MEMORIAL", "MEN", "MENU", "MERCKMSD", "MG", "MH", "MIAMI", "MICROSOFT", "MIL", "MINI", "MINT", "MIT", "MITSUBISHI", "MK", "ML", "MLB", "MLS", "MM", "MMA", "MN", "MO", "MOBI", "MOBILE", "MODA", "MOE", "MOI", "MOM", "MONASH", "MONEY", "MONSTER", "MORMON", "MORTGAGE", "MOSCOW", "MOTO", "MOTORCYCLES", "MOV", "MOVIE", "MP", "MQ", "MR", "MS", "MSD", "MT", "MTN", "MTR", "MU", "MUSEUM", "MUSIC", "MV", "MW", "MX", "MY", "MZ", "NA", "NAB", "NAGOYA", "NAME", "NAVY", "NBA", "NC", "NE", "NEC", "NET", "NETBANK", "NETFLIX", "NETWORK", "NEUSTAR", "NEW", "NEWS", "NEXT", "NEXTDIRECT", "NEXUS", "NF", "NFL", "NG", "NGO", "NHK", "NI", "NICO", "NIKE", "NIKON", "NINJA", "NISSAN", "NISSAY", "NL", "NO", "NOKIA", "NORTON", "NOW", "NOWRUZ", "NOWTV", "NP", "NR", "NRA", "NRW", "NTT", "NU", "NYC", "NZ", "OBI", "OBSERVER", "OFFICE", "OKINAWA", "OLAYAN", "OLAYANGROUP", "OLLO", "OM", "OMEGA", "ONE", "ONG", "ONL", "ONLINE", "OOO", "OPEN", "ORACLE", "ORANGE", "ORG", "ORGANIC", "ORIGINS", "OSAKA", "OTSUKA", "OTT", "OVH", "PA", "PAGE", "PANASONIC", "PARIS", "PARS", "PARTNERS", "PARTS", "PARTY", "PAY", "PCCW", "PE", "PET", "PF", "PFIZER", "PG", "PH", "PHARMACY", "PHD", "PHILIPS", "PHONE", "PHOTO", "PHOTOGRAPHY", "PHOTOS", "PHYSIO", "PICS", "PICTET", "PICTURES", "PID", "PIN", "PING", "PINK", "PIONEER", "PIZZA", "PK", "PL", "PLACE", "PLAY", "PLAYSTATION", "PLUMBING", "PLUS", "PM", "PN", "PNC", "POHL", "POKER", "POLITIE", "PORN", "POST", "PR", "PRAMERICA", "PRAXI", "PRESS", "PRIME", "PRO", "PROD", "PRODUCTIONS", "PROF", "PROGRESSIVE", "PROMO", "PROPERTIES", "PROPERTY", "PROTECTION", "PRU", "PRUDENTIAL", "PS", "PT", "PUB", "PW", "PWC", "PY", "QA", "QPON", "QUEBEC", "QUEST", "RACING", "RADIO", "RE", "READ", "REALESTATE", "REALTOR", "REALTY", "RECIPES", "RED", "REDSTONE", "REDUMBRELLA", "REHAB", "REISE", "REISEN", "REIT", "RELIANCE", "REN", "RENT", "RENTALS", "REPAIR", "REPORT", "REPUBLICAN", "REST", "RESTAURANT", "REVIEW", "REVIEWS", "REXROTH", "RICH", "RICHARDLI", "RICOH", "RIL", "RIO", "RIP", "RO", "ROCKS", "RODEO", "ROGERS", "ROOM", "RS", "RSVP", "RU", "RUGBY", "RUHR", "RUN", "RW", "RWE", "RYUKYU", "SA", "SAARLAND", "SAFE", "SAFETY", "SAKURA", "SALE", "SALON", "SAMSCLUB", "SAMSUNG", "SANDVIK", "SANDVIKCOROMANT", "SANOFI", "SAP", "SARL", "SAS", "SAVE", "SAXO", "SB", "SBI", "SBS", "SC", "SCB", "SCHAEFFLER", "SCHMIDT", "SCHOLARSHIPS", "SCHOOL", "SCHULE", "SCHWARZ", "SCIENCE", "SCOT", "SD", "SE", "SEARCH", "SEAT", "SECURE", "SECURITY", "SEEK", "SELECT", "SENER", "SERVICES", "SEVEN", "SEW", "SEX", "SEXY", "SFR", "SG", "SH", "SHANGRILA", "SHARP", "SHELL", "SHIA", "SHIKSHA", "SHOES", "SHOP", "SHOPPING", "SHOUJI", "SHOW", "SI", "SILK", "SINA", "SINGLES", "SITE", "SJ", "SK", "SKI", "SKIN", "SKY", "SKYPE", "SL", "SLING", "SM", "SMART", "SMILE", "SN", "SNCF", "SO", "SOCCER", "SOCIAL", "SOFTBANK", "SOFTWARE", "SOHU", "SOLAR", "SOLUTIONS", "SONG", "SONY", "SOY", "SPA", "SPACE", "SPORT", "SPOT", "SR", "SRL", "SS", "ST", "STADA", "STAPLES", "STAR", "STATEBANK", "STATEFARM", "STC", "STCGROUP", "STOCKHOLM", "STORAGE", "STORE", "STREAM", "STUDIO", "STUDY", "STYLE", "SU", "SUCKS", "SUPPLIES", "SUPPLY", "SUPPORT", "SURF", "SURGERY", "SUZUKI", "SV", "SWATCH", "SWISS", "SX", "SY", "SYDNEY", "SYSTEMS", "SZ", "TAB", "TAIPEI", "TALK", "TAOBAO", "TARGET", "TATAMOTORS", "TATAR", "TATTOO", "TAX", "TAXI", "TC", "TCI", "TD", "TDK", "TEAM", "TECH", "TECHNOLOGY", "TEL", "TEMASEK", "TENNIS", "TEVA", "TF", "TG", "TH", "THD", "THEATER", "THEATRE", "TIAA", "TICKETS", "TIENDA", "TIPS", "TIRES", "TIROL", "TJ", "TJMAXX", "TJX", "TK", "TKMAXX", "TL", "TM", "TMALL", "TN", "TO", "TODAY", "TOKYO", "TOOLS", "TOP", "TORAY", "TOSHIBA", "TOTAL", "TOURS", "TOWN", "TOYOTA", "TOYS", "TR", "TRADE", "TRADING", "TRAINING", "TRAVEL", "TRAVELERS", "TRAVELERSINSURANCE", "TRUST", "TRV", "TT", "TUBE", "TUI", "TUNES", "TUSHU", "TV", "TVS", "TW", "TZ", "UA", "UBANK", "UBS", "UG", "UK", "UNICOM", "UNIVERSITY", "UNO", "UOL", "UPS", "US", "UY", "UZ", "VA", "VACATIONS", "VANA", "VANGUARD", "VC", "VE", "VEGAS", "VENTURES", "VERISIGN", "VERSICHERUNG", "VET", "VG", "VI", "VIAJES", "VIDEO", "VIG", "VIKING", "VILLAS", "VIN", "VIP", "VIRGIN", "VISA", "VISION", "VIVA", "VIVO", "VLAANDEREN", "VN", "VODKA", "VOLVO", "VOTE", "VOTING", "VOTO", "VOYAGE", "VU", "WALES", "WALMART", "WALTER", "WANG", "WANGGOU", "WATCH", "WATCHES", "WEATHER", "WEATHERCHANNEL", "WEBCAM", "WEBER", "WEBSITE", "WED", "WEDDING", "WEIBO", "WEIR", "WF", "WHOSWHO", "WIEN", "WIKI", "WILLIAMHILL", "WIN", "WINDOWS", "WINE", "WINNERS", "WME", "WOLTERSKLUWER", "WOODSIDE", "WORK", "WORKS", "WORLD", "WOW", "WS", "WTC", "WTF", "XBOX", "XEROX", "XIHUAN", "XIN", "XN--11B4C3D", "XN--1CK2E1B", "XN--1QQW23A", "XN--2SCRJ9C", "XN--30RR7Y", "XN--3BST00M", "XN--3DS443G", "XN--3E0B707E", "XN--3HCRJ9C", "XN--3PXU8K", "XN--42C2D9A", "XN--45BR5CYL", "XN--45BRJ9C", "XN--45Q11C", "XN--4DBRK0CE", "XN--4GBRIM", "XN--54B7FTA0CC", "XN--55QW42G", "XN--55QX5D", "XN--5SU34J936BGSG", "XN--5TZM5G", "XN--6FRZ82G", "XN--6QQ986B3XL", "XN--80ADXHKS", "XN--80AO21A", "XN--80AQECDR1A", "XN--80ASEHDB", "XN--80ASWG", "XN--8Y0A063A", "XN--90A3AC", "XN--90AE", "XN--90AIS", "XN--9DBQ2A", "XN--9ET52U", "XN--9KRT00A", "XN--B4W605FERD", "XN--BCK1B9A5DRE4C", "XN--C1AVG", "XN--C2BR7G", "XN--CCK2B3B", "XN--CCKWCXETD", "XN--CG4BKI", "XN--CLCHC0EA0B2G2A9GCD", "XN--CZR694B", "XN--CZRS0T", "XN--CZRU2D", "XN--D1ACJ3B", "XN--D1ALF", "XN--E1A4C", "XN--ECKVDTC9D", "XN--EFVY88H", "XN--FCT429K", "XN--FHBEI", "XN--FIQ228C5HS", "XN--FIQ64B", "XN--FIQS8S", "XN--FIQZ9S", "XN--FJQ720A", "XN--FLW351E", "XN--FPCRJ9C3D", "XN--FZC2C9E2C", "XN--FZYS8D69UVGM", "XN--G2XX48C", "XN--GCKR3F0F", "XN--GECRJ9C", "XN--GK3AT1E", "XN--H2BREG3EVE", "XN--H2BRJ9C", "XN--H2BRJ9C8C", "XN--HXT814E", "XN--I1B6B1A6A2E", "XN--IMR513N", "XN--IO0A7I", "XN--J1AEF", "XN--J1AMH", "XN--J6W193G", "XN--JLQ480N2RG", "XN--JVR189M", "XN--KCRX77D1X4A", "XN--KPRW13D", "XN--KPRY57D", "XN--KPUT3I", "XN--L1ACC", "XN--LGBBAT1AD8J", "XN--MGB9AWBF", "XN--MGBA3A3EJT", "XN--MGBA3A4F16A", "XN--MGBA7C0BBN0A", "XN--MGBAAM7A8H", "XN--MGBAB2BD", "XN--MGBAH1A3HJKRD", "XN--MGBAI9AZGQP6J", "XN--MGBAYH7GPA", "XN--MGBBH1A", "XN--MGBBH1A71E", "XN--MGBC0A9AZCG", "XN--MGBCA7DZDO", "XN--MGBCPQ6GPA1A", "XN--MGBERP4A5D4AR", "XN--MGBGU82A", "XN--MGBI4ECEXP", "XN--MGBPL2FH", "XN--MGBT3DHD", "XN--MGBTX2B", "XN--MGBX4CD0AB", "XN--MIX891F", "XN--MK1BU44C", "XN--MXTQ1M", "XN--NGBC5AZD", "XN--NGBE9E0A", "XN--NGBRX", "XN--NODE", "XN--NQV7F", "XN--NQV7FS00EMA", "XN--NYQY26A", "XN--O3CW4H", "XN--OGBPF8FL", "XN--OTU796D", "XN--P1ACF", "XN--P1AI", "XN--PGBS0DH", "XN--PSSY2U", "XN--Q7CE6A", "XN--Q9JYB4C", "XN--QCKA1PMC", "XN--QXA6A", "XN--QXAM", "XN--RHQV96G", "XN--ROVU88B", "XN--RVC1E0AM3E", "XN--S9BRJ9C", "XN--SES554G", "XN--T60B56A", "XN--TCKWE", "XN--TIQ49XQYJ", "XN--UNUP4Y", "XN--VERMGENSBERATER-CTB", "XN--VERMGENSBERATUNG-PWB", "XN--VHQUV", "XN--VUQ861B", "XN--W4R85EL8FHU5DNRA", "XN--W4RS40L", "XN--WGBH1C", "XN--WGBL6A", "XN--XHQ521B", "XN--XKC2AL3HYE2A", "XN--XKC2DL3A5EE0H", "XN--Y9A3AQ", "XN--YFRO4I67O", "XN--YGBI2AMMX", "XN--ZFR164B", "XXX", "XYZ", "YACHTS", "YAHOO", "YAMAXUN", "YANDEX", "YE", "YODOBASHI", "YOGA", "YOKOHAMA", "YOU", "YOUTUBE", "YT", "YUN", "ZA", "ZAPPOS", "ZARA", "ZERO", "ZIP", "ZM", "ZONE", "ZUERICH", "ZW"
-]
+// Load settings from storage
+async function loadSettings() {
+    try {
+        const result = await chrome.storage.sync.get({
+            enabled: true,
+            minVolume: 20,
+            maxVolume: 80
+        });
+        settings = result;
+        console.log('Auto Volume: Settings loaded', settings);
+    } catch (error) {
+        console.error('Auto Volume: Error loading settings', error);
+    }
+}
 
+// Convert percentage to decimal volume (0-1)
+const percentToVolume = (percent) => Math.max(0, Math.min(1, percent / 100));
 
-const isValidTLD = (tld) => {
-  return validTLDs.includes(tld.toUpperCase());
+// Convert decimal volume to percentage
+const volumeToPercent = (volume) => Math.round(volume * 100);
+
+// Adjust volume of a media element
+const adjustMediaVolume = (element) => {
+    if (!element || !settings.enabled) return;
+    
+    // Skip if element is muted (user choice)
+    if (element.muted) return;
+    
+    const currentVolume = element.volume;
+    const currentPercent = volumeToPercent(currentVolume);
+    
+    let newPercent = currentPercent;
+    let adjusted = false;
+    let adjustmentType = '';
+    
+    // Check if volume is below minimum
+    if (currentPercent < settings.minVolume) {
+        newPercent = settings.minVolume;
+        adjusted = true;
+        adjustmentType = 'boosted';
+        console.log(`Auto Volume: Boosting volume from ${currentPercent}% to ${newPercent}%`);
+    }
+    // Check if volume is above maximum
+    else if (currentPercent > settings.maxVolume) {
+        newPercent = settings.maxVolume;
+        adjusted = true;
+        adjustmentType = 'reduced';
+        console.log(`Auto Volume: Reducing volume from ${currentPercent}% to ${newPercent}%`);
+    }
+    
+    if (adjusted) {
+        const newVolume = percentToVolume(newPercent);
+        
+        // Prevent feedback loops by temporarily removing event listeners
+        const tempVolumeHandler = () => {};
+        element.removeEventListener('volumechange', tempVolumeHandler);
+        
+        // Set the new volume
+        element.volume = newVolume;
+        
+        // Add a small delay before re-enabling volume change detection
+        setTimeout(() => {
+            // Re-add event listener if needed (this is handled in findMediaElements)
+        }, 100);
+        
+        // Add visual indicator for a moment
+        showVolumeIndicator(element, newPercent, adjustmentType);
+        
+        // If we're boosting to 100% and it might still be too quiet
+        if (newPercent >= 100 && adjustmentType === 'boosted') {
+            setTimeout(() => {
+                showSystemVolumeHint(element);
+            }, 3000); // Show system volume hint 3 seconds after hitting 100%
+        }
+    }
 };
 
-const replaceSpacedLinks = (text) => {
-  console.log("Replacing spaced links");
-  const domainRegex = /(?<!\S)([a-zA-Z0-9-]+(?:\s*\.\s*[a-zA-Z0-9-]+)+(?:\s*\/\s*[a-zA-Z0-9-]+)*)\b(?!\.?\s*\n)/g;
-
-  return text.replace(domainRegex, (match, p1, offset, string) => {
-    const beforeMatch = string.substring(0, offset);
-    const afterMatch = string.substring(offset + match.length);
-    if (beforeMatch.lastIndexOf('<a') > beforeMatch.lastIndexOf('</a') ||
-      afterMatch.indexOf('</a') < afterMatch.indexOf('<a')) {
-      return match;
+// Show a temporary visual indicator when volume is adjusted
+const showVolumeIndicator = (element, volume, adjustmentType = '') => {
+    // Remove any existing indicator
+    const existingIndicator = element.parentNode?.querySelector('.auto-volume-indicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
     }
-    const url = match.replace(/\s+/g, '');
-    const domain = url.split('/').shift();
-    console.log("URL:", domain);
-    console.log("Domain:", domain);
-    let tld = domain.split('.').pop();
-    // remove any route after the domain
-    tld = tld.split('/').shift();
-    console.log("TLD:", tld, isValidTLD(tld));
-    if (!isValidTLD(tld)) {
-      return match;
+    
+    // Create volume indicator with appropriate icon
+    const indicator = document.createElement('div');
+    indicator.className = 'auto-volume-indicator';
+    
+    let icon = '🔊';
+    let color = '#4CAF50';
+    if (adjustmentType === 'boosted') {
+        icon = '🔊↗️';
+        color = '#2196F3';
+    } else if (adjustmentType === 'reduced') {
+        icon = '🔊↘️';
+        color = '#FF9800';
     }
-    console.log("Replaced link:", match, "with:", url);
-    return `<a href="https://${url}" style="color: #1DA1F2; text-decoration: inherit;" target="_blank" rel="noopener noreferrer">${url}</a>`;
-  });
+    
+    indicator.innerHTML = `${icon} ${volume}%`;
+    indicator.style.cssText = `
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        font-weight: 600;
+        z-index: 99999;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        border-left: 3px solid ${color};
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+    
+    // Position relative to the video element
+    const rect = element.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+        if (element.parentNode) {
+            const parent = element.parentNode;
+            if (parent.style.position === '' || parent.style.position === 'static') {
+                parent.style.position = 'relative';
+            }
+            parent.appendChild(indicator);
+            
+            // Remove indicator after 2.5 seconds
+            setTimeout(() => {
+                if (indicator.parentNode) {
+                    indicator.style.opacity = '0';
+                    setTimeout(() => {
+                        if (indicator.parentNode) {
+                            indicator.remove();
+                        }
+                    }, 300);
+                }
+            }, 2500);
+        }
+    }
 };
 
-const renderTweet = (tweetElement) => {
-  if (tweetElement instanceof HTMLElement && !tweetElement.dataset.processed) {
-    const tweetText = tweetElement.querySelector('[data-testid="tweetText"]');
-    const tweetImage = tweetElement.querySelector('[data-testid="tweetPhoto"]');
-
-    if (tweetText) {
-      const originalText = tweetText.innerHTML || '';
-      const replacedText = replaceSpacedLinks(originalText);
-      tweetText.innerHTML = replacedText;
+// Show a system volume hint when web volume is at maximum
+const showSystemVolumeHint = (element) => {
+    // Remove any existing hint
+    const existingHint = element.parentNode?.querySelector('.auto-volume-system-hint');
+    if (existingHint) {
+        existingHint.remove();
     }
-
-    if (tweetImage && tweetImage instanceof HTMLElement) {
-      tweetImage.style.display = 'block';
+    
+    // Create system volume hint
+    const hint = document.createElement('div');
+    hint.className = 'auto-volume-system-hint';
+    hint.innerHTML = `🔊💻 Web volume at 100%<br><small>Check system volume for louder audio</small>`;
+    hint.style.cssText = `
+        position: absolute;
+        top: 50px;
+        left: 10px;
+        background: rgba(33, 150, 243, 0.95);
+        color: white;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        font-weight: 500;
+        z-index: 99999;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        border-left: 3px solid #1976D2;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+        max-width: 200px;
+        text-align: center;
+        line-height: 1.3;
+    `;
+    
+    // Position relative to the video element
+    const rect = element.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+        if (element.parentNode) {
+            const parent = element.parentNode;
+            if (parent.style.position === '' || parent.style.position === 'static') {
+                parent.style.position = 'relative';
+            }
+            parent.appendChild(hint);
+            
+            // Remove hint after 4 seconds
+            setTimeout(() => {
+                if (hint.parentNode) {
+                    hint.style.opacity = '0';
+                    setTimeout(() => {
+                        if (hint.parentNode) {
+                            hint.remove();
+                        }
+                    }, 300);
+                }
+            }, 4000);
+        }
     }
-
-    tweetElement.dataset.processed = 'true';
-  }
 };
 
-const main = () => {
-  if (isProcessing) return;
-  isProcessing = true;
-  console.log("Main function called");
-
-  const tweets = document.querySelectorAll('[data-testid="tweet"]');
-  for (const tweet of tweets) {
-    console.log("Processing tweet", tweet);
-    renderTweet(tweet);
-  }
-
-  console.log("Tweets processed");
-  isProcessing = false;
+// Find and monitor all media elements
+const findMediaElements = () => {
+    const audioElements = document.querySelectorAll('audio');
+    const videoElements = document.querySelectorAll('video');
+    
+    [...audioElements, ...videoElements].forEach(element => {
+        if (!mediaElements.has(element)) {
+            mediaElements.add(element);
+            
+            // Initial volume check
+            adjustMediaVolume(element);
+            
+            // Listen for volume changes and immediately re-adjust
+            element.addEventListener('volumechange', () => {
+                // Small delay to let the volume change complete, then re-adjust
+                setTimeout(() => {
+                    if (settings.enabled) {
+                        adjustMediaVolume(element);
+                    }
+                }, 50);
+            });
+            
+            // Listen for when media starts playing
+            element.addEventListener('play', () => {
+                setTimeout(() => {
+                    if (settings.enabled) {
+                        adjustMediaVolume(element);
+                    }
+                }, 50);
+            });
+            
+            // Listen for when media loads
+            element.addEventListener('loadeddata', () => {
+                setTimeout(() => {
+                    if (settings.enabled) {
+                        adjustMediaVolume(element);
+                    }
+                }, 50);
+            });
+            
+            // Listen for when media metadata loads (volume info available)
+            element.addEventListener('loadedmetadata', () => {
+                setTimeout(() => {
+                    if (settings.enabled) {
+                        adjustMediaVolume(element);
+                    }
+                }, 50);
+            });
+            
+            // Listen for when playback rate changes (some sites change volume with playback)
+            element.addEventListener('ratechange', () => {
+                setTimeout(() => {
+                    if (settings.enabled) {
+                        adjustMediaVolume(element);
+                    }
+                }, 50);
+            });
+            
+            console.log('Auto Volume: Monitoring new media element', element.tagName);
+        }
+    });
 };
 
-const checkMutations = () => {
-  console.log("Setting up mutation observer");
-  let observer = new MutationObserver((mutations, observer) => {
-    const tweets = document.querySelectorAll('[data-testid="tweet"]');
-    if (tweets.length > 0) {
-      const visibleTweets = Array.from(tweets).filter(tweet => {
-        const rect = tweet.getBoundingClientRect();
-        return rect.top >= 0 && rect.bottom <= window.innerHeight;
-      });
-
-      if (visibleTweets.length > 0) {
-        console.log("Visible tweets detected, calling main function");
-        main();
-      }
+// Periodic check for volume adjustments
+const startVolumeMonitoring = () => {
+    if (volumeCheckInterval) {
+        clearInterval(volumeCheckInterval);
     }
-  });
-
-  observer.observe(document.body, {
-    subtree: true, childList: true, attributes: false
-  });
+    
+    volumeCheckInterval = setInterval(() => {
+        if (settings.enabled) {
+            // Monitor HTML5 media elements
+            mediaElements.forEach(element => {
+                // Remove elements that are no longer in the DOM
+                if (!document.contains(element)) {
+                    mediaElements.delete(element);
+                    return;
+                }
+                
+                // Adjust volume for all media elements, not just playing ones
+                // This ensures we catch volume changes immediately
+                adjustMediaVolume(element);
+            });
+            
+            // Monitor Web Audio gain nodes
+            monitorWebAudioGain();
+            
+            // Also check for any new media elements that might have appeared
+            findMediaElements();
+        }
+    }, 250); // Check every 250ms for more responsive volume control
 };
 
-checkMutations();
+// Set up mutation observer to detect new media elements
+const setupMutationObserver = () => {
+    const observer = new MutationObserver((mutations) => {
+        if (isProcessing) return;
+        isProcessing = true;
+        
+        setTimeout(() => {
+            findMediaElements();
+            isProcessing = false;
+        }, 100);
+    });
+    
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+};
 
-window.addEventListener('DOMContentLoaded', async () => {
-  console.log("DOM loaded");
-  console.log('TLDs:', validTLDs.length);
-  main();
+// Web Audio API monitoring and control
+const setupWebAudioMonitoring = () => {
+    // Hook into AudioContext creation
+    const originalAudioContext = window.AudioContext || window.webkitAudioContext;
+    if (originalAudioContext) {
+        const AudioContextProxy = function(...args) {
+            const ctx = new originalAudioContext(...args);
+            webAudioContexts.add(ctx);
+            
+            // Hook into createGain to monitor gain nodes
+            const originalCreateGain = ctx.createGain.bind(ctx);
+            ctx.createGain = function() {
+                const gainNode = originalCreateGain();
+                gainNodes.add(gainNode);
+                
+                // Monitor gain changes
+                const originalGainValue = gainNode.gain.value;
+                Object.defineProperty(gainNode.gain, 'value', {
+                    get() {
+                        return this._value || originalGainValue;
+                    },
+                    set(newValue) {
+                        this._value = newValue;
+                        if (settings.enabled) {
+                            setTimeout(() => adjustWebAudioGain(gainNode), 50);
+                        }
+                    }
+                });
+                
+                return gainNode;
+            };
+            
+            console.log('Auto Volume: Monitoring Web Audio Context');
+            return ctx;
+        };
+        
+        // Replace the global constructors
+        window.AudioContext = AudioContextProxy;
+        if (window.webkitAudioContext) {
+            window.webkitAudioContext = AudioContextProxy;
+        }
+    }
+};
+
+// Adjust Web Audio API gain nodes
+const adjustWebAudioGain = (gainNode) => {
+    if (!gainNode || !settings.enabled) return;
+    
+    const currentGain = gainNode.gain.value;
+    const currentPercent = Math.round(currentGain * 100);
+    
+    let newPercent = currentPercent;
+    let adjusted = false;
+    let adjustmentType = '';
+    
+    // Check if gain is below minimum
+    if (currentPercent < settings.minVolume) {
+        newPercent = settings.minVolume;
+        adjusted = true;
+        adjustmentType = 'boosted';
+        console.log(`Auto Volume: Boosting Web Audio gain from ${currentPercent}% to ${newPercent}%`);
+    }
+    // Check if gain is above maximum  
+    else if (currentPercent > settings.maxVolume) {
+        newPercent = settings.maxVolume;
+        adjusted = true;
+        adjustmentType = 'reduced';
+        console.log(`Auto Volume: Reducing Web Audio gain from ${currentPercent}% to ${newPercent}%`);
+    }
+    
+    if (adjusted) {
+        const newGain = newPercent / 100;
+        gainNode.gain.setValueAtTime(newGain, gainNode.context.currentTime);
+        
+        // Show visual indicator if we can find a related media element
+        const mediaElement = findRelatedMediaElement();
+        if (mediaElement) {
+            showVolumeIndicator(mediaElement, newPercent, adjustmentType);
+        } else {
+            showFloatingVolumeIndicator(newPercent, adjustmentType);
+        }
+    }
+};
+
+// Find a media element that might be related to Web Audio
+const findRelatedMediaElement = () => {
+    // Look for any video or audio element that might be playing
+    const allMedia = document.querySelectorAll('video, audio');
+    for (const element of allMedia) {
+        if (!element.paused && !element.muted) {
+            return element;
+        }
+    }
+    
+    // If no playing media, return the first video element we find
+    const firstVideo = document.querySelector('video');
+    if (firstVideo) return firstVideo;
+    
+    // Look for common player containers
+    const playerContainers = document.querySelectorAll(
+        '.player, .video-player, .audio-player, [class*="player"], [id*="player"]'
+    );
+    if (playerContainers.length > 0) {
+        return playerContainers[0];
+    }
+    
+    return null;
+};
+
+// Show floating volume indicator when no media element is available
+const showFloatingVolumeIndicator = (volume, adjustmentType = '') => {
+    // Remove any existing floating indicator
+    const existingIndicator = document.querySelector('.auto-volume-floating-indicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+    
+    // Create floating volume indicator
+    const indicator = document.createElement('div');
+    indicator.className = 'auto-volume-floating-indicator';
+    
+    let icon = '🔊';
+    let color = '#4CAF50';
+    if (adjustmentType === 'boosted') {
+        icon = '🔊↗️';
+        color = '#2196F3';
+    } else if (adjustmentType === 'reduced') {
+        icon = '🔊↘️';
+        color = '#FF9800';
+    }
+    
+    indicator.innerHTML = `${icon} ${volume}%`;
+    indicator.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        font-weight: 600;
+        z-index: 999999;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        border-left: 4px solid ${color};
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    `;
+    
+    document.body.appendChild(indicator);
+    
+    // Remove indicator after 2.5 seconds
+    setTimeout(() => {
+        if (indicator.parentNode) {
+            indicator.style.opacity = '0';
+            setTimeout(() => {
+                if (indicator.parentNode) {
+                    indicator.remove();
+                }
+            }, 300);
+        }
+    }, 2500);
+};
+
+// Monitor all Web Audio gain nodes periodically
+const monitorWebAudioGain = () => {
+    gainNodes.forEach(gainNode => {
+        try {
+            if (gainNode.context && gainNode.context.state !== 'closed') {
+                adjustWebAudioGain(gainNode);
+            } else {
+                // Remove closed/invalid gain nodes
+                gainNodes.delete(gainNode);
+            }
+        } catch (error) {
+            // Remove invalid gain nodes
+            gainNodes.delete(gainNode);
+        }
+    });
+};
+
+// Get current volume of playing media (including Web Audio)
+const getCurrentVolume = () => {
+    let maxVolume = 0;
+    let hasMedia = false;
+    let isAtMaxVolume = false;
+    let totalElements = 0;
+    
+    // Check HTML5 media elements
+    mediaElements.forEach(element => {
+        if (document.contains(element)) {
+            totalElements++;
+            if (!element.paused && !element.muted) {
+                hasMedia = true;
+                maxVolume = Math.max(maxVolume, element.volume);
+                if (element.volume >= 0.99) { // Consider 99%+ as max volume
+                    isAtMaxVolume = true;
+                }
+            }
+        }
+    });
+    
+    // Check Web Audio gain nodes
+    gainNodes.forEach(gainNode => {
+        try {
+            if (gainNode.context && gainNode.context.state !== 'closed') {
+                hasMedia = true;
+                totalElements++;
+                const gainValue = gainNode.gain.value;
+                maxVolume = Math.max(maxVolume, gainValue);
+                if (gainValue >= 0.99) {
+                    isAtMaxVolume = true;
+                }
+            }
+        } catch (error) {
+            // Ignore invalid gain nodes
+        }
+    });
+    
+    // If no playing media, check all media elements
+    if (!hasMedia && totalElements > 0) {
+        mediaElements.forEach(element => {
+            if (document.contains(element)) {
+                hasMedia = true;
+                maxVolume = Math.max(maxVolume, element.volume);
+                if (element.volume >= 0.99) {
+                    isAtMaxVolume = true;
+                }
+            }
+        });
+    }
+    
+    return { 
+        volume: maxVolume, 
+        hasMedia, 
+        isAtMaxVolume,
+        totalElements 
+    };
+};
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'SETTINGS_UPDATED') {
+        settings = message.settings;
+        console.log('Auto Volume: Settings updated', settings);
+        
+        if (!settings.enabled && volumeCheckInterval) {
+            clearInterval(volumeCheckInterval);
+            volumeCheckInterval = null;
+        } else if (settings.enabled && !volumeCheckInterval) {
+            startVolumeMonitoring();
+        }
+        sendResponse({ success: true });
+    } else if (message.type === 'GET_CURRENT_VOLUME') {
+        const volumeInfo = getCurrentVolume();
+        sendResponse(volumeInfo);
+    }
+    
+    return true; // Will respond asynchronously
 });
 
-window.addEventListener('popstate', () => {
-  console.log("Route changed");
-  main();
-});
-
-window.addEventListener("click", () => {
-  requestAnimationFrame(() => {
-    if (windowurl !== window.location.href) {
-      console.log("URL changed");
-      windowurl = window.location.href;
-      main();
+// Initialize the extension
+const initExtension = async () => {
+    console.log('Auto Volume: Content script loaded');
+    
+    // Set up Web Audio monitoring first (needs to be early)
+    setupWebAudioMonitoring();
+    
+    await loadSettings();
+    findMediaElements();
+    setupMutationObserver();
+    
+    if (settings.enabled) {
+        startVolumeMonitoring();
     }
-  });
-}, true);
+    
+    console.log('Auto Volume: Initialization complete');
+};
 
+// Clean up on page unload
 window.addEventListener('beforeunload', () => {
-  console.log("Page unloading");
+    if (volumeCheckInterval) {
+        clearInterval(volumeCheckInterval);
+    }
 });
 
-window.addEventListener('hashchange', () => {
-  console.log("Hash changed");
-  main();
-});
+// Start the extension
+initExtension();
 /******/ })()
 ;
 //# sourceMappingURL=contentScript.js.map

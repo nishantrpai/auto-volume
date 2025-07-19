@@ -1,7 +1,7 @@
 {
-  "name": "thread2audio",
-  "version": "0.1.0",
-  "description": "My Chrome Extension",
+  "name": "auto-volume-adjuster",
+  "version": "1.0.0",
+  "description": "Chrome Extension for Auto Volume Adjustment",
   "private": true,
   "scripts": {
     "watch": "webpack --mode=development --watch --config config/webpack.config.js",

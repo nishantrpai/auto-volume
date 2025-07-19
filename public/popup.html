@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 300px;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        
+        .value-display {
+            min-width: 40px;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 25px;
+            background: #ccc;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .toggle.active {
+            background: #4CAF50;
+        }
+        
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 21px;
+            height: 21px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        
+        .toggle.active::after {
+            transform: translateX(25px);
+        }
+        
+        .status {
+            text-align: center;
+            padding: 10px;
+            background: #e8f5e8;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #2e7d32;
+        }
+        
+        .status.disabled {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .current-volume {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .current-volume label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .volume-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .volume-bar {
+            flex: 1;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .volume-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50 0%, #FFC107 70%, #F44336 90%);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        .volume-text {
+            min-width: 50px;
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .no-media {
+            color: #999;
+            font-style: italic;
+            font-size: 12px;
+        }
+        
+        .volume-note {
+            font-size: 11px;
+            color: #666;
+            margin-top: 8px;
+            line-height: 1.3;
+        }
+        
+        .system-volume-tip {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 15px 0;
+            font-size: 12px;
+            color: #856404;
+        }
+        
+        .system-volume-tip strong {
+            color: #533f03;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔊 Auto Volume</h1>
+    </div>
+    
+    <div class="current-volume">
+        <label>Current Tab Volume</label>
+        <div class="volume-info" id="currentVolume">
+            <span class="volume-bar">
+                <span class="volume-fill" id="volumeFill"></span>
+            </span>
+            <span class="volume-text" id="volumeText">--</span>
+        </div>
+        <div class="volume-note" id="volumeNote">
+            Note: This shows web page volume only. Check your system volume if audio is still too quiet.
+        </div>
+    </div>
+    
+    <div class="toggle-container">
+        <label>Enable Auto Volume</label>
+        <div class="toggle" id="enableToggle"></div>
+    </div>
+    
+    <div class="control-group">
+        <label>Minimum Volume</label>
+        <div class="slider-container">
+            <input type="range" class="slider" id="minVolume" min="0" max="100" value="20">
+            <span class="value-display" id="minValue">20%</span>
+        </div>
+    </div>
+    
+    <div class="control-group">
+        <label>Maximum Volume</label>
+        <div class="slider-container">
+            <input type="range" class="slider" id="maxVolume" min="0" max="100" value="80">
+            <span class="value-display" id="maxValue">80%</span>
+        </div>
+    </div>
+    
+    <div class="status" id="status">Auto volume adjustment is active</div>
+    
+    <div class="system-volume-tip" id="systemTip" style="display: none;">
+        <strong>💡 Tip:</strong> If audio is still too quiet even at 100%, try increasing your system volume or the browser's volume in your system's volume mixer.
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
